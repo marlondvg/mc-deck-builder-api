@@ -1,0 +1,34 @@
+spring:
+  application:
+    name: mc-deck-builder-api
+  datasource:
+    url: jdbc:h2:mem:mcdeck;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+app:
+  jwt:
+    # Required, at least 32 bytes. Never commit a real value.
+    secret: ${JWT_SECRET}
+    # No refresh tokens: a week keeps people logged in without re-entering the password often.
+    ttl: 7d
+    issuer: mc-deck-builder-api
+  cors:
+    # Comma-separated list of frontend origins.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
+  login-limit:
+    # Failed logins allowed per username and per client IP within one window.
+    max-failures-per-username: 5
+    max-failures-per-ip: 20
+    window: 15m

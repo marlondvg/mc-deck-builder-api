@@ -1,0 +1,94 @@
+package dev.marlondvg.mc_deck_api.infrastructure.web;
+
+import dev.marlondvg.mc_deck_api.domain.exception.DomainException;
+import dev.marlondvg.mc_deck_api.domain.exception.UsernameAlreadyUsedException;
+import dev.marlondvg.mc_deck_api.domain.exception.InvalidCredentialsException;
+import dev.marlondvg.mc_deck_api.domain.exception.InvalidPasswordException;
+import dev.marlondvg.mc_deck_api.domain.exception.InvalidUserException;
+import dev.marlondvg.mc_deck_api.domain.exception.TooManyLoginAttemptsException;
+import dev.marlondvg.mc_deck_api.domain.exception.UnknownUserException;
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
+
+import java.net.URI;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Turns every error into an RFC 9457 problem detail. Spring MVC's own errors
+ * (malformed JSON, type mismatches, ...) are handled by the base class.
+ */
+@RestControllerAdvice
+class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
+
+	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+	@ExceptionHandler({InvalidUserException.class, InvalidPasswordException.class})
+	ProblemDetail handleInvalidInput(DomainException ex, HttpServletRequest request) {
+		return problem(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
+	}
+
+	@ExceptionHandler(UsernameAlreadyUsedException.class)
+	ProblemDetail handleConflict(DomainException ex, HttpServletRequest request) {
+		return problem(HttpStatus.CONFLICT, ex.getMessage(), request);
+	}
+
+	// A valid token whose user was removed is treated like an expired login.
+	@ExceptionHandler({InvalidCredentialsException.class, UnknownUserException.class})
+	ProblemDetail handleInvalidCredentials(DomainException ex, HttpServletRequest request) {
+		return problem(HttpStatus.UNAUTHORIZED, ex.getMessage(), request);
+	}
+
+	@ExceptionHandler(TooManyLoginAttemptsException.class)
+	ResponseEntity<ProblemDetail> handleTooManyLoginAttempts(TooManyLoginAttemptsException ex,
+			HttpServletRequest request) {
+		// Round up so clients never retry a moment too early.
+		long retryAfterSeconds = Math.max(1, (ex.getRetryAfter().toMillis() + 999) / 1000);
+		return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+				.header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds))
+				.body(problem(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request));
+	}
+
+	@ExceptionHandler(AuthenticationException.class)
+	ProblemDetail handleUnauthenticated(AuthenticationException ex, HttpServletRequest request) {
+		return problem(HttpStatus.UNAUTHORIZED, "Authentication is required", request);
+	}
+
+	@ExceptionHandler(Exception.class)
+	ProblemDetail handleUnexpected(Exception ex, HttpServletRequest request) {
+		log.error("Unexpected error on {} {}", request.getMethod(), request.getRequestURI(), ex);
+		return problem(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred", request);
+	}
+
+	@Override
+	protected ResponseEntity<Object> handleMethodArgumentNotValid(MethodArgumentNotValidException ex,
+			HttpHeaders headers, HttpStatusCode status, WebRequest request) {
+		List<Map<String, String>> errors = ex.getBindingResult().getFieldErrors().stream()
+				.map(error -> Map.of(
+						"field", error.getField(),
+						"message", String.valueOf(error.getDefaultMessage())))
+				.toList();
+		ProblemDetail body = ex.getBody();
+		body.setDetail("Request validation failed");
+		body.setProperty("errors", errors);
+		return handleExceptionInternal(ex, body, headers, status, request);
+	}
+
+	private static ProblemDetail problem(HttpStatus status, String detail, HttpServletRequest request) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+		problem.setInstance(URI.create(request.getRequestURI()));
+		return problem;
+	}
+}
