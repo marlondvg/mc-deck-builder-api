@@ -1,8 +1,11 @@
 package dev.marlondvg.mc_deck_api.infrastructure.web;
 
+import dev.marlondvg.mc_deck_api.domain.exception.DeckNotFoundException;
 import dev.marlondvg.mc_deck_api.domain.exception.DomainException;
+import dev.marlondvg.mc_deck_api.domain.exception.InvalidCollectionException;
 import dev.marlondvg.mc_deck_api.domain.exception.UsernameAlreadyUsedException;
 import dev.marlondvg.mc_deck_api.domain.exception.InvalidCredentialsException;
+import dev.marlondvg.mc_deck_api.domain.exception.InvalidDeckException;
 import dev.marlondvg.mc_deck_api.domain.exception.InvalidPasswordException;
 import dev.marlondvg.mc_deck_api.domain.exception.InvalidUserException;
 import dev.marlondvg.mc_deck_api.domain.exception.TooManyLoginAttemptsException;
@@ -35,7 +38,13 @@ class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
 	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
-	@ExceptionHandler({InvalidUserException.class, InvalidPasswordException.class})
+	@ExceptionHandler(DeckNotFoundException.class)
+	ProblemDetail handleNotFound(DeckNotFoundException ex, HttpServletRequest request) {
+		return problem(HttpStatus.NOT_FOUND, ex.getMessage(), request);
+	}
+
+	@ExceptionHandler({InvalidUserException.class, InvalidPasswordException.class, InvalidDeckException.class,
+			InvalidCollectionException.class})
 	ProblemDetail handleInvalidInput(DomainException ex, HttpServletRequest request) {
 		return problem(HttpStatus.BAD_REQUEST, ex.getMessage(), request);
 	}

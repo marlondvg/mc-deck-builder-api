@@ -117,14 +117,21 @@ jobs:
           echo "::error::App did not become healthy"
           exit 1
 
-      - name: Smoke test register, login and current user
+      - name: Smoke test auth, collection and decks
         run: |
           base=http://localhost:8080
           credentials='{"username": "ci-user", "password": "correct horse battery"}'
           curl -fs -X POST "$base/api/auth/register" -H 'Content-Type: application/json' -d "$credentials"
           token=$(curl -fs -X POST "$base/api/auth/login" -H 'Content-Type: application/json' -d "$credentials" \
             | python3 -c 'import sys, json; print(json.load(sys.stdin)["accessToken"])')
-          curl -fs "$base/api/users/me" -H "Authorization: Bearer $token" | grep -q '"username":"ci-user"'
+          auth="Authorization: Bearer $token"
+          curl -fs "$base/api/users/me" -H "$auth" | grep -q '"username":"ci-user"'
+          curl -fs -X PUT "$base/api/collection" -H "$auth" -H 'Content-Type: application/json' \
+            -d '{"packs": ["core", "cap"]}'
+          curl -fs "$base/api/collection" -H "$auth" | grep -q '"packs":\["cap","core"\]'
+          curl -fs -X POST "$base/api/decks" -H "$auth" -H 'Content-Type: application/json' \
+            -d '{"name": "Spider-Man", "heroCode": "01001a", "aspects": ["justice"], "slots": {"01002": 1}}'
+          curl -fs "$base/api/decks" -H "$auth" | grep -q '"heroCode":"01001a"'
           echo "Smoke test passed"
 
       - name: Show app logs
