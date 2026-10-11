@@ -30,5 +30,12 @@ JWT_SECRET=$(openssl rand -base64 48) ./gradlew bootRun   # http://localhost:808
 | POST   | `/api/auth/register` | no    | Create an account                  |
 | POST   | `/api/auth/login`    | no    | Log in, returns a bearer JWT       |
 | GET    | `/api/users/me`      | token | The logged-in user                 |
+| GET    | `/api/collection`    | token | Packs the user owns                |
+| PUT    | `/api/collection`    | token | Replace the owned packs            |
+| GET    | `/api/decks`         | token | The user's decks, newest first     |
+| POST   | `/api/decks`         | token | Create a deck                      |
+| GET    | `/api/decks/{id}`    | token | One deck                           |
+| PUT    | `/api/decks/{id}`    | token | Save a deck                        |
+| DELETE | `/api/decks/{id}`    | token | Delete a deck                      |
 
-Collection and deck endpoints are coming next (see `docs/specs`).
+Specs with the full rules are in `docs/specs`.
